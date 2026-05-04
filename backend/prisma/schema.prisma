@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db" // Using SQLite for quick dev, will migrate to PostgreSQL on RDS
+}
+
+model Company {
+  id             String           @id @default(uuid())
+  name           String
+  document       String?          @unique // CNPJ/CPF
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  users          User[]
+  customers      Customer[]
+  products       Product[]
+  sales          Sale[]
+  receivables    Receivable[]
+  whatsappConfig WhatsAppConfig?
+  inventory      InventoryTransaction[]
+}
+
+model User {
+  id           String   @id @default(uuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("OPERATOR") // ADMIN | OPERATOR
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  sales        Sale[]
+  inventory    InventoryTransaction[]
+}
+
+model Customer {
+  id          String   @id @default(uuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  name        String
+  document    String?
+  phone       String?
+  email       String?
+  photoUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sales       Sale[]
+  receivables Receivable[]
+}
+
+model Product {
+  id           String   @id @default(uuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  name         String
+  description  String?
+  sku          String?
+  price        Float
+  currentStock Int      @default(0)
+  minStock     Int      @default(0)
+  photoUrl     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  saleItems    SaleItem[]
+  inventory    InventoryTransaction[]
+}
+
+model InventoryTransaction {
+  id        String   @id @default(uuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String   // IN | OUT
+  quantity  Int
+  notes     String?
+  createdAt DateTime @default(now())
+}
+
+model Sale {
+  id           String     @id @default(uuid())
+  companyId    String
+  company      Company    @relation(fields: [companyId], references: [id])
+  customerId   String
+  customer     Customer   @relation(fields: [customerId], references: [id])
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  totalAmount  Float
+  status       String     @default("COMPLETED") // PENDING | COMPLETED | CANCELLED
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  items        SaleItem[]
+  receivables  Receivable[]
+}
+
+model SaleItem {
+  id        String  @id @default(uuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Int
+  unitPrice Float
+  subtotal  Float
+}
+
+model Receivable {
+  id         String   @id @default(uuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id])
+  saleId     String
+  sale       Sale     @relation(fields: [saleId], references: [id])
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  amount     Float
+  dueDate    DateTime
+  status     String   @default("PENDING") // PENDING | PAID | LATE
+  paidAt     DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model WhatsAppConfig {
+  id         String   @id @default(uuid())
+  companyId  String   @unique
+  company    Company  @relation(fields: [companyId], references: [id])
+  token      String?
+  instanceId String?
+  status     String   @default("DISCONNECTED")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}

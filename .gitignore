@@ -1,0 +1,20 @@
+node_modules/
+.DS_Store
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# Backend
+backend/dev.db
+backend/dev.db-journal
+backend/uploads/
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
