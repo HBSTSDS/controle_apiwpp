@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import API_URL from '../../config/api';
 
 interface Stats {
   todaySales: number;
@@ -25,7 +26,7 @@ export default function DashboardPage() {
     async function loadStats() {
       if (!token) return;
       try {
-        const response = await fetch('http://localhost:3001/api/dashboard/stats', {
+        const response = await fetch(`${API_URL}/api/dashboard/stats`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
+import API_URL from '../../../config/api';
 
 interface Customer {
   id: string;
@@ -28,7 +29,7 @@ export default function CustomersPage() {
   const fetchCustomers = async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://localhost:3001/api/customers', {
+      const res = await fetch(`${API_URL}/api/customers`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -55,7 +56,7 @@ export default function CustomersPage() {
         const formData = new FormData();
         formData.append('photo', photoFile);
 
-        const uploadRes = await fetch('http://localhost:3001/api/upload', {
+        const uploadRes = await fetch(`${API_URL}/api/upload`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
           body: formData
@@ -70,7 +71,7 @@ export default function CustomersPage() {
       }
 
       // Create customer
-      const res = await fetch('http://localhost:3001/api/customers', {
+      const res = await fetch(`${API_URL}/api/customers`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

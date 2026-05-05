@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import styles from './login.module.css'; // We'll create this to keep it scoped, but use globals where possible
+import styles from './login.module.css';
+import API_URL from '../../config/api';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -17,7 +18,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('http://localhost:3001/api/auth/login', {
+      const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),

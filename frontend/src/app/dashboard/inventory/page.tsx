@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
+import API_URL from '../../../config/api';
 
 interface Product {
   id: string;
@@ -41,7 +42,7 @@ export default function InventoryPage() {
   const fetchTransactions = async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://localhost:3001/api/inventory/history', {
+      const res = await fetch(`${API_URL}/api/inventory/history`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -56,7 +57,7 @@ export default function InventoryPage() {
   const fetchProducts = async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://localhost:3001/api/products', {
+      const res = await fetch(`${API_URL}/api/products`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -77,7 +78,7 @@ export default function InventoryPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:3001/api/inventory/adjust', {
+      const res = await fetch(`${API_URL}/api/inventory/adjust`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

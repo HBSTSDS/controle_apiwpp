@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
+import API_URL from '../../../config/api';
 
 interface Receivable {
   id: string;
@@ -22,7 +23,7 @@ export default function ReceivablesPage() {
   const fetchReceivables = async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://localhost:3001/api/receivables', {
+      const res = await fetch(`${API_URL}/api/receivables`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -43,7 +44,7 @@ export default function ReceivablesPage() {
     
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:3001/api/receivables/${id}/pay`, {
+      const res = await fetch(`${API_URL}/api/receivables/${id}/pay`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` }
       });

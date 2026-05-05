@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
+import API_URL from '../../../config/api';
 
 interface Customer {
   id: string;
@@ -58,7 +59,7 @@ export default function SalesPage() {
   const fetchSales = async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://localhost:3001/api/sales', {
+      const res = await fetch(`${API_URL}/api/sales`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -73,7 +74,7 @@ export default function SalesPage() {
   const fetchCustomers = async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://localhost:3001/api/customers', {
+      const res = await fetch(`${API_URL}/api/customers`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -88,7 +89,7 @@ export default function SalesPage() {
   const fetchProducts = async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://localhost:3001/api/products', {
+      const res = await fetch(`${API_URL}/api/products`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -155,7 +156,7 @@ export default function SalesPage() {
 
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:3001/api/sales', {
+      const res = await fetch(`${API_URL}/api/sales`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
