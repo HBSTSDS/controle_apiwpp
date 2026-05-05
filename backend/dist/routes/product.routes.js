@@ -1,0 +1,13 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.productRoutes = void 0;
+const express_1 = require("express");
+const product_controller_1 = require("../controllers/product.controller");
+const authMiddleware_1 = require("../middlewares/authMiddleware");
+const productRoutes = (0, express_1.Router)();
+exports.productRoutes = productRoutes;
+const productController = new product_controller_1.ProductController();
+productRoutes.use(authMiddleware_1.authMiddleware);
+productRoutes.post('/', productController.create);
+productRoutes.post('/bulk', productController.bulkCreate);
+productRoutes.get('/', productController.list);

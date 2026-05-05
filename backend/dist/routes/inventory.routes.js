@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.inventoryRoutes = void 0;
+const express_1 = require("express");
+const inventory_controller_1 = require("../controllers/inventory.controller");
+const authMiddleware_1 = require("../middlewares/authMiddleware");
+const inventoryRoutes = (0, express_1.Router)();
+exports.inventoryRoutes = inventoryRoutes;
+const inventoryController = new inventory_controller_1.InventoryController();
+inventoryRoutes.use(authMiddleware_1.authMiddleware);
+inventoryRoutes.post('/adjust', inventoryController.adjust);
+inventoryRoutes.get('/history', inventoryController.history);

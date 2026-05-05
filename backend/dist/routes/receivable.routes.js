@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.receivableRoutes = void 0;
+const express_1 = require("express");
+const receivable_controller_1 = require("../controllers/receivable.controller");
+const authMiddleware_1 = require("../middlewares/authMiddleware");
+const receivableRoutes = (0, express_1.Router)();
+exports.receivableRoutes = receivableRoutes;
+const receivableController = new receivable_controller_1.ReceivableController();
+receivableRoutes.use(authMiddleware_1.authMiddleware);
+receivableRoutes.get('/', receivableController.list);
+receivableRoutes.patch('/:id/pay', receivableController.markAsPaid);

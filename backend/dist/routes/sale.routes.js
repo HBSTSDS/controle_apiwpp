@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.saleRoutes = void 0;
+const express_1 = require("express");
+const sale_controller_1 = require("../controllers/sale.controller");
+const authMiddleware_1 = require("../middlewares/authMiddleware");
+const saleRoutes = (0, express_1.Router)();
+exports.saleRoutes = saleRoutes;
+const saleController = new sale_controller_1.SaleController();
+saleRoutes.use(authMiddleware_1.authMiddleware);
+saleRoutes.post('/', saleController.create);
+saleRoutes.get('/', saleController.list);

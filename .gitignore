@@ -1,11 +1,12 @@
 node_modules/
 .DS_Store
 
-# Next.js
-frontend/.next/
+# Next.js (mantemos o build compilado para deploy no servidor)
+# frontend/.next/  <- INCLUÍDO INTENCIONALMENTE
 frontend/out/
 
-# Backend
+# Backend (mantemos o dist/ compilado para deploy no servidor)
+# backend/dist/  <- INCLUÍDO INTENCIONALMENTE
 backend/dev.db
 backend/dev.db-journal
 backend/uploads/
