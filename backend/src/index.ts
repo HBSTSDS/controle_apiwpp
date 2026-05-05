@@ -19,6 +19,7 @@ import { productRoutes } from './routes/product.routes';
 import { inventoryRoutes } from './routes/inventory.routes';
 import { saleRoutes } from './routes/sale.routes';
 import { receivableRoutes } from './routes/receivable.routes';
+import { dashboardRoutes } from './routes/dashboard.routes';
 import { uploadRoutes } from './routes/upload.routes';
 import path from 'path';
 
@@ -30,6 +31,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/sales', saleRoutes);
 app.use('/api/receivables', receivableRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/upload', uploadRoutes);
 
 const PORT = process.env.PORT || 3001;

@@ -69,7 +69,6 @@ export class ProductController {
 
       const result = await prisma.product.createMany({
         data: dataToInsert,
-        skipDuplicates: true,
       });
 
       return res.status(201).json({ message: `${result.count} produtos importados com sucesso!` });

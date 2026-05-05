@@ -102,6 +102,11 @@ p {
   box-shadow: 0 0 0 3px var(--border-focus);
 }
 
+option {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;

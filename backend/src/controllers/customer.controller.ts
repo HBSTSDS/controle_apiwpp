@@ -37,6 +37,8 @@ export class CustomerController {
         orderBy: { createdAt: 'desc' }
       });
 
+      console.log(`[DEBUG] Listando ${customers.length} clientes para a empresa ${companyId}`);
+
       return res.json(customers);
     } catch (error) {
       console.error(error);

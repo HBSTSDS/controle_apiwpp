@@ -12,7 +12,7 @@ export class SaleController {
       if (!companyId || !userId) return res.status(401).json({ error: 'Não autorizado' });
 
       let totalAmount = 0;
-      const saleItemsData = [];
+      const saleItemsData: any[] = [];
 
       // Calculate total and prepare items
       for (const item of items) {
