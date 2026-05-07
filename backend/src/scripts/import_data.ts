@@ -20,32 +20,41 @@ async function importData() {
 
   console.log(`Iniciando importação para a empresa: ${company.name} (${companyId})`);
 
+  // Tentar encontrar os arquivos na raiz do projeto ou na pasta backend
+  const findFile = (name: string) => {
+    const paths = [
+      path.join(__dirname, `../../../${name}`),
+      path.join(__dirname, `../../${name}`),
+      path.join(process.cwd(), name),
+      path.join(process.cwd(), 'backend', name)
+    ];
+    for (const p of paths) {
+      if (fs.existsSync(p)) return p;
+    }
+    return null;
+  };
+
   // --- IMPORTAR ESTOQUE (PRODUTOS) ---
-  const estoquePath = path.join(__dirname, '../../../estoque.csv');
-  if (fs.existsSync(estoquePath)) {
-    console.log('Lendo estoque.csv...');
+  const estoquePath = findFile('estoque.csv');
+  if (estoquePath) {
+    console.log(`Lendo ${estoquePath}...`);
     const data = fs.readFileSync(estoquePath, 'utf-8');
     const lines = data.split('\n').filter(l => l.trim() !== '');
     
-    // Header: PRODUTO;COD;MEDIDA;DATA;FORNECEDOR;P.CUSTO UNIT;P.VENDA UNIT;ENTRADA;MINIMO;SAIDAS;EST.ATUAL;...
     for (let i = 1; i < lines.length; i++) {
       const cols = lines[i].split(';');
       if (cols.length < 11) continue;
 
-      const name = cols[0];
-      const sku = cols[1];
-      const price = parseFloat(cols[6].replace('R$ ', '').replace(',', '.'));
+      const name = cols[0].trim();
+      const sku = cols[1].trim();
+      const priceStr = cols[6].replace('R$ ', '').replace('.', '').replace(',', '.');
+      const price = parseFloat(priceStr) || 0;
       const minStock = parseInt(cols[8]) || 0;
       const currentStock = parseInt(cols[10]) || 0;
 
       await prisma.product.upsert({
-        where: { id: `import-${sku}` }, // Usando SKU como chave de importação única
-        update: {
-          name,
-          price,
-          minStock,
-          currentStock,
-        },
+        where: { id: `import-${sku}` },
+        update: { name, price, minStock, currentStock },
         create: {
           id: `import-${sku}`,
           companyId,
@@ -58,17 +67,18 @@ async function importData() {
       });
     }
     console.log('Produtos importados/atualizados com sucesso!');
+  } else {
+    console.warn('estoque.csv não encontrado.');
   }
 
   // --- IMPORTAR VENDAS (CLIENTES E VENDAS) ---
-  const vendasPath = path.join(__dirname, '../../../vendas.csv');
-  if (fs.existsSync(vendasPath)) {
-    console.log('Lendo vendas.csv...');
+  const vendasPath = findFile('vendas.csv');
+  if (vendasPath) {
+    console.log(`Lendo ${vendasPath}...`);
     const data = fs.readFileSync(vendasPath, 'utf-8');
     const lines = data.split('\n').filter(l => l.trim() !== '');
 
     for (let i = 1; i < lines.length; i++) {
-      // Remover aspas do início e fim da linha se existirem
       let line = lines[i].trim();
       if (line.startsWith('"') && line.endsWith('"')) {
         line = line.substring(1, line.length - 1);
@@ -77,13 +87,18 @@ async function importData() {
       const cols = line.split(';');
       if (cols.length < 10) continue;
 
-      const dataVenda = cols[0]; // DD/MM/YYYY
-      const prodName = cols[1];
-      const sku = cols[2];
-      const clienteName = cols[4];
+      const dataVenda = cols[0].trim(); 
+      const prodName = cols[1].trim();
+      const sku = cols[2].trim();
+      const clienteName = cols[4].trim();
       const qtde = parseInt(cols[5]) || 0;
-      const valorUnit = parseFloat(cols[6].replace('R$ ', '').replace(',', '.'));
-      const statusVenda = cols[9]; // PAGO | FIADO | etc
+      const valorUnitStr = cols[6].replace('R$ ', '').replace('.', '').replace(',', '.');
+      const valorUnit = parseFloat(valorUnitStr) || 0;
+      
+      const formaPagto = cols[8].trim(); // FIADO | PIX | etc
+      const statusVenda = cols[9].trim(); // PAGO | FIADO | etc
+
+      if (!clienteName || clienteName === '') continue;
 
       // 1. Garantir Cliente
       const customer = await prisma.customer.upsert({
@@ -99,8 +114,12 @@ async function importData() {
       // 2. Buscar Produto
       const product = await prisma.product.findFirst({ where: { sku, companyId } });
       if (!product) {
-        console.warn(`Produto SKU ${sku} não encontrado para a venda da linha ${i+1}`);
-        continue;
+        // Se não achar pelo SKU, tenta pelo nome
+        const productByName = await prisma.product.findFirst({ where: { name: prodName, companyId } });
+        if (!productByName) {
+          console.warn(`Produto ${prodName} (SKU ${sku}) não encontrado. Pulando venda.`);
+          continue;
+        }
       }
 
       // 3. Criar Venda
@@ -117,7 +136,7 @@ async function importData() {
           createdAt: saleDate,
           items: {
             create: {
-              productId: product.id,
+              productId: product?.id || (await prisma.product.findFirst({ where: { name: prodName } }))?.id || '',
               quantity: qtde,
               unitPrice: valorUnit,
               subtotal: valorUnit * qtde
@@ -127,20 +146,23 @@ async function importData() {
       });
 
       // 4. Se for FIADO, criar Recebível
-      if (statusVenda === 'FIADO') {
+      if (formaPagto === 'FIADO') {
         await prisma.receivable.create({
           data: {
             companyId,
             saleId: sale.id,
             customerId: customer.id,
             amount: valorUnit * qtde,
-            dueDate: new Date(saleDate.getTime() + 30 * 24 * 60 * 60 * 1000), // +30 dias padrão
-            status: 'PENDING'
+            dueDate: new Date(saleDate.getTime() + 30 * 24 * 60 * 60 * 1000),
+            status: statusVenda === 'PAGO' ? 'PAID' : 'PENDING',
+            paidAt: statusVenda === 'PAGO' ? saleDate : null
           }
         });
       }
     }
     console.log('Vendas e Clientes importados com sucesso!');
+  } else {
+    console.warn('vendas.csv não encontrado.');
   }
 
   console.log('=== Importação concluída! ===');
