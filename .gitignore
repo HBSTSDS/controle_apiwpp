@@ -7,8 +7,11 @@ frontend/out/
 
 # Backend (mantemos o dist/ compilado para deploy no servidor)
 # backend/dist/  <- INCLUÍDO INTENCIONALMENTE
-backend/dev.db
-backend/dev.db-journal
+# Databases
+*.db
+*.db-journal
+backend/prisma/*.db
+backend/prisma/*.db-journal
 backend/uploads/
 
 # Environment variables
