@@ -8,6 +8,8 @@ interface Receivable {
   id: string;
   amount: number;
   dueDate: string;
+  installmentNumber: number;
+  totalInstallments: number;
   status: 'PENDING' | 'PAID' | 'LATE';
   paidAt: string | null;
   customer: { name: string; phone: string };
@@ -139,7 +141,7 @@ export default function ReceivablesPage() {
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={5} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Nenhum registro encontrado.</td></tr>
+              <tr><td colSpan={6} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Nenhum registro encontrado.</td></tr>
             )}
           </tbody>
         </table>
