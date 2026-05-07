@@ -4,74 +4,54 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import API_URL from '../../../config/api';
 
+interface InventoryTransaction {
+  id: string;
+  type: 'IN' | 'OUT';
+  quantity: number;
+  notes: string;
+  createdAt: string;
+  product: { name: string; sku: string };
+  user: { name: string };
+}
+
 interface Product {
   id: string;
   name: string;
   sku: string;
   currentStock: number;
-}
-
-interface Transaction {
-  id: string;
-  createdAt: string;
-  type: 'IN' | 'OUT';
-  quantity: number;
-  notes: string | null;
-  product: {
-    name: string;
-    sku: string | null;
-  };
-  user: {
-    name: string;
-  };
+  minStock: number;
 }
 
 export default function InventoryPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [history, setHistory] = useState<InventoryTransaction[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const { token } = useAuth();
 
   // Form states
-  const [productId, setProductId] = useState('');
+  const [selectedProductId, setSelectedProductId] = useState('');
   const [type, setType] = useState<'IN' | 'OUT'>('IN');
   const [quantity, setQuantity] = useState('');
   const [notes, setNotes] = useState('');
 
-  const fetchTransactions = async () => {
+  const fetchData = async () => {
     if (!token) return;
     try {
-      const res = await fetch(`${API_URL}/api/inventory/history`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setTransactions(data);
-      }
+      const [histRes, prodRes] = await Promise.all([
+        fetch(`${API_URL}/api/inventory/history`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/api/products`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      
+      if (histRes.ok) setHistory(await histRes.json());
+      if (prodRes.ok) setProducts(await prodRes.json());
     } catch (err) {
-      console.error('Failed to fetch transactions', err);
-    }
-  };
-
-  const fetchProducts = async () => {
-    if (!token) return;
-    try {
-      const res = await fetch(`${API_URL}/api/products`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setProducts(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch products', err);
+      console.error('Failed to fetch inventory data', err);
     }
   };
 
   useEffect(() => {
-    fetchTransactions();
-    fetchProducts();
+    fetchData();
   }, [token]);
 
   const handleAdjust = async (e: React.FormEvent) => {
@@ -84,23 +64,18 @@ export default function InventoryPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}` 
         },
-        body: JSON.stringify({ productId, type, quantity: Number(quantity), notes }),
+        body: JSON.stringify({ productId: selectedProductId, type, quantity, notes }),
       });
       if (res.ok) {
         setIsModalOpen(false);
-        setProductId('');
-        setType('IN');
-        setQuantity('');
-        setNotes('');
-        fetchTransactions();
-        fetchProducts();
+        setSelectedProductId(''); setQuantity(''); setNotes('');
+        fetchData();
       } else {
-        const errorData = await res.json();
-        alert(errorData.error || 'Erro ao ajustar estoque');
+        const error = await res.json();
+        alert(error.error || 'Erro ao ajustar estoque');
       }
     } catch (err) {
       console.error(err);
-      alert('Erro de conexão ao ajustar estoque');
     } finally {
       setLoading(false);
     }
@@ -110,95 +85,104 @@ export default function InventoryPage() {
     <div className="animate-fade-in">
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <div>
-          <h1 style={{ color: 'var(--primary)' }}>Estoque</h1>
-          <p>Controle de entrada e saída de produtos.</p>
+          <h1 style={{ color: 'var(--primary)' }}>Controle de Estoque</h1>
+          <p>Ajustes manuais e histórico de movimentações.</p>
         </div>
         <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
-          + Ajustar Estoque
+          + Novo Ajuste
         </button>
       </header>
 
-      <div className="glass-panel" style={{ padding: '1.5rem', overflowX: 'auto' }}>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Data/Hora</th>
-              <th>Produto</th>
-              <th>Tipo</th>
-              <th>Quantidade</th>
-              <th>Usuário</th>
-              <th>Observações</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.length === 0 ? (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '2rem' }}>
+        {/* Histórico */}
+        <div className="glass-panel" style={{ padding: '1.5rem', overflowX: 'auto' }}>
+          <h2 style={{ marginBottom: '1.5rem', fontSize: '1.2rem' }}>Movimentações Recentes</h2>
+          <table className="data-table">
+            <thead>
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                  Nenhuma movimentação registrada.
-                </td>
+                <th>Data</th>
+                <th>Produto</th>
+                <th>Tipo</th>
+                <th>Qtd</th>
+                <th>Usuário</th>
+                <th>Notas</th>
               </tr>
-            ) : (
-              transactions.map(t => (
-                <tr key={t.id}>
-                  <td>{new Date(t.createdAt).toLocaleString()}</td>
-                  <td>{t.product.name} {t.product.sku ? `(${t.product.sku})` : ''}</td>
+            </thead>
+            <tbody>
+              {history.map(h => (
+                <tr key={h.id}>
+                  <td>{new Date(h.createdAt).toLocaleDateString('pt-BR')}</td>
                   <td>
-                    {t.type === 'IN' ? (
-                      <span className="badge badge-success">Entrada</span>
-                    ) : (
-                      <span className="badge badge-danger">Saída</span>
-                    )}
+                    <strong>{h.product.name}</strong>
+                    <br /><small style={{ color: 'var(--text-muted)' }}>{h.product.sku}</small>
                   </td>
-                  <td>{t.quantity}</td>
-                  <td>{t.user.name}</td>
-                  <td>{t.notes || '-'}</td>
+                  <td>
+                    <span className={`badge ${h.type === 'IN' ? 'badge-success' : 'badge-danger'}`}>
+                      {h.type === 'IN' ? 'Entrada' : 'Saída'}
+                    </span>
+                  </td>
+                  <td>{h.quantity}</td>
+                  <td>{h.user.name}</td>
+                  <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{h.notes || '-'}</td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Resumo de Alerta */}
+        <div>
+          <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+            <h3 style={{ color: 'var(--danger)', marginBottom: '1rem' }}>⚠️ Atenção</h3>
+            <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+              Produtos com estoque abaixo do mínimo precisam de reposição imediata.
+            </p>
+            <div style={{ marginTop: '1rem' }}>
+              {products.filter(p => p.currentStock <= p.minStock).map(p => (
+                <div key={p.id} style={{ padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.9rem' }}>{p.name}</span>
+                    <span style={{ color: 'var(--danger)', fontWeight: 'bold' }}>{p.currentStock} / {p.minStock}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {isModalOpen && (
         <div className="modal-overlay">
           <div className="glass-panel modal-content animate-fade-in">
-            <h2 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Ajuste de Estoque</h2>
+            <h2 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Novo Ajuste de Estoque</h2>
             <form onSubmit={handleAdjust}>
               <div className="input-group">
                 <label className="input-label">Produto</label>
                 <select 
                   className="input-field" 
-                  value={productId} 
-                  onChange={e => setProductId(e.target.value)} 
+                  value={selectedProductId} 
+                  onChange={e => setSelectedProductId(e.target.value)}
                   required
                 >
                   <option value="">Selecione um produto...</option>
                   {products.map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} (Estoque: {p.currentStock})
-                    </option>
+                    <option key={p.id} value={p.id}>{p.name} ({p.currentStock} un)</option>
                   ))}
                 </select>
               </div>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div className="input-group">
-                  <label className="input-label">Tipo de Movimentação</label>
-                  <select 
-                    className="input-field" 
-                    value={type} 
-                    onChange={e => setType(e.target.value as 'IN' | 'OUT')} 
-                    required
-                  >
-                    <option value="IN">Entrada (Adicionar)</option>
-                    <option value="OUT">Saída (Remover)</option>
+                  <label className="input-label">Tipo de Movimento</label>
+                  <select className="input-field" value={type} onChange={e => setType(e.target.value as any)}>
+                    <option value="IN">Entrada (+)</option>
+                    <option value="OUT">Saída (-)</option>
                   </select>
                 </div>
                 <div className="input-group">
                   <label className="input-label">Quantidade</label>
                   <input 
                     type="number" 
-                    min="1"
                     className="input-field" 
                     value={quantity} 
                     onChange={e => setQuantity(e.target.value)} 
@@ -208,13 +192,12 @@ export default function InventoryPage() {
               </div>
 
               <div className="input-group">
-                <label className="input-label">Observações (Opcional)</label>
-                <input 
-                  type="text" 
+                <label className="input-label">Observações</label>
+                <textarea 
                   className="input-field" 
                   value={notes} 
-                  onChange={e => setNotes(e.target.value)} 
-                  placeholder="Ex: Recebimento de fornecedor, devolução, etc."
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Ex: Compra de estoque, Ajuste de inventário..."
                 />
               </div>
 

@@ -4,11 +4,6 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import API_URL from '../../../config/api';
 
-interface Customer {
-  id: string;
-  name: string;
-}
-
 interface Product {
   id: string;
   name: string;
@@ -17,143 +12,86 @@ interface Product {
   currentStock: number;
 }
 
-interface Sale {
+interface Customer {
   id: string;
-  createdAt: string;
-  totalAmount: number;
-  status: string;
-  customer: { name: string };
-  user: { name: string };
+  name: string;
 }
 
-interface CartItem {
+interface SaleItem {
   productId: string;
-  name: string;
+  productName: string;
   quantity: number;
   unitPrice: number;
   subtotal: number;
 }
 
 export default function SalesPage() {
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [items, setItems] = useState<SaleItem[]>([]);
+  const [customerId, setCustomerId] = useState('');
+  const [generateReceivable, setGenerateReceivable] = useState(false);
+  const [dueDate, setDueDate] = useState('');
+  const [amountPaid, setAmountPaid] = useState('');
   const [loading, setLoading] = useState(false);
   const { token } = useAuth();
 
-  // Form states
-  const [customerId, setCustomerId] = useState('');
-  
-  // Cart states
-  const [selectedProductId, setSelectedProductId] = useState('');
-  const [quantity, setQuantity] = useState('1');
-  const [cart, setCart] = useState<CartItem[]>([]);
-  
-  // Receivable states
-  const [generateReceivable, setGenerateReceivable] = useState(true);
-  const [dueDate, setDueDate] = useState('');
-  const [amountPaid, setAmountPaid] = useState('0');
+  // Helper for adding items
+  const [currentProductId, setCurrentProductId] = useState('');
+  const [currentQty, setCurrentQty] = useState(1);
 
-  const fetchSales = async () => {
+  const fetchData = async () => {
     if (!token) return;
     try {
-      const res = await fetch(`${API_URL}/api/sales`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setSales(data);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fetchCustomers = async () => {
-    if (!token) return;
-    try {
-      const res = await fetch(`${API_URL}/api/customers`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCustomers(data);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const fetchProducts = async () => {
-    if (!token) return;
-    try {
-      const res = await fetch(`${API_URL}/api/products`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setProducts(data);
-      }
+      const [prodRes, custRes] = await Promise.all([
+        fetch(`${API_URL}/api/products`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_URL}/api/customers`, { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      if (prodRes.ok) setProducts(await prodRes.ok ? await prodRes.json() : []);
+      if (custRes.ok) setCustomers(await custRes.ok ? await custRes.json() : []);
     } catch (err) {
       console.error(err);
     }
   };
 
   useEffect(() => {
-    fetchSales();
-    fetchCustomers();
-    fetchProducts();
+    fetchData();
   }, [token]);
 
-  const handleAddToCart = () => {
-    if (!selectedProductId || !quantity) return;
-    const qty = parseInt(quantity);
-    if (qty <= 0) return;
-
-    const product = products.find(p => p.id === selectedProductId);
+  const addItem = () => {
+    const product = products.find(p => p.id === currentProductId);
     if (!product) return;
-
-    // Check if already in cart
-    const existing = cart.find(c => c.productId === selectedProductId);
+    
+    const existing = items.find(i => i.productId === currentProductId);
     if (existing) {
-      if (existing.quantity + qty > product.currentStock) {
-        return alert(`Estoque insuficiente. Disponível: ${product.currentStock}`);
-      }
-      setCart(cart.map(c => 
-        c.productId === selectedProductId 
-          ? { ...c, quantity: c.quantity + qty, subtotal: (c.quantity + qty) * c.unitPrice }
-          : c
-      ));
+      setItems(items.map(i => i.productId === currentProductId ? {
+        ...i,
+        quantity: i.quantity + Number(currentQty),
+        subtotal: (i.quantity + Number(currentQty)) * i.unitPrice
+      } : i));
     } else {
-      if (qty > product.currentStock) {
-        return alert(`Estoque insuficiente. Disponível: ${product.currentStock}`);
-      }
-      setCart([...cart, {
+      setItems([...items, {
         productId: product.id,
-        name: product.name,
-        quantity: qty,
+        productName: product.name,
+        quantity: Number(currentQty),
         unitPrice: product.price,
-        subtotal: qty * product.price
+        subtotal: product.price * Number(currentQty)
       }]);
     }
-    setSelectedProductId('');
-    setQuantity('1');
+    setCurrentProductId('');
+    setCurrentQty(1);
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart(cart.filter(c => c.productId !== productId));
+  const removeItem = (id: string) => {
+    setItems(items.filter(i => i.productId !== id));
   };
 
-  const totalCartAmount = cart.reduce((acc, curr) => acc + curr.subtotal, 0);
+  const total = items.reduce((acc, curr) => acc + curr.subtotal, 0);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSale = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customerId) return alert('Selecione um cliente.');
-    if (cart.length === 0) return alert('O carrinho está vazio.');
-    if (generateReceivable && !dueDate) return alert('Informe a data de vencimento.');
-
+    if (items.length === 0 || !customerId) return alert('Selecione um cliente e ao menos um produto');
+    
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/sales`, {
@@ -162,35 +100,24 @@ export default function SalesPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}` 
         },
-        body: JSON.stringify({
-          customerId,
-          items: cart.map(c => ({
-            productId: c.productId,
-            quantity: c.quantity,
-            unitPrice: c.unitPrice
-          })),
-          generateReceivable,
+        body: JSON.stringify({ 
+          customerId, 
+          items, 
+          generateReceivable, 
           dueDate: generateReceivable ? dueDate : null,
-          amountPaid: generateReceivable ? parseFloat(amountPaid || '0') : 0
+          amountPaid: Number(amountPaid || 0)
         }),
       });
-
       if (res.ok) {
-        setIsModalOpen(false);
-        setCart([]);
-        setCustomerId('');
-        setGenerateReceivable(true);
-        setDueDate('');
-        setAmountPaid('0');
-        fetchSales();
-        fetchProducts(); // Refresh stock
+        alert('Venda registrada com sucesso!');
+        setItems([]); setCustomerId(''); setGenerateReceivable(false); setAmountPaid(''); setDueDate('');
+        fetchData();
       } else {
-        const errorData = await res.json();
-        alert(errorData.error || 'Erro ao registrar venda');
+        const error = await res.json();
+        alert(error.error || 'Erro ao registrar venda');
       }
     } catch (err) {
       console.error(err);
-      alert('Erro de conexão ao salvar venda');
     } finally {
       setLoading(false);
     }
@@ -198,190 +125,123 @@ export default function SalesPage() {
 
   return (
     <div className="animate-fade-in">
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <div>
-          <h1 style={{ color: 'var(--primary)' }}>Vendas</h1>
-          <p>Registre novas vendas e visualize o histórico.</p>
-        </div>
-        <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
-          + Nova Venda
-        </button>
+      <header style={{ marginBottom: '2rem' }}>
+        <h1 style={{ color: 'var(--primary)' }}>Nova Venda</h1>
+        <p>Registre pedidos e gere contas a receber.</p>
       </header>
 
-      <div className="glass-panel" style={{ padding: '1.5rem', overflowX: 'auto' }}>
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Data/Hora</th>
-              <th>Cliente</th>
-              <th>Vendedor</th>
-              <th>Valor Total</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sales.length === 0 ? (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 400px', gap: '2rem' }}>
+        {/* Lado Esquerdo: Itens da Venda */}
+        <div className="glass-panel" style={{ padding: '1.5rem' }}>
+          <h2 style={{ fontSize: '1.2rem', marginBottom: '1.5rem' }}>Itens do Pedido</h2>
+          
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+            <select 
+              className="input-field" 
+              style={{ flex: 2 }}
+              value={currentProductId}
+              onChange={e => setCurrentProductId(e.target.value)}
+            >
+              <option value="">Buscar Produto...</option>
+              {products.map(p => (
+                <option key={p.id} value={p.id}>{p.name} - R$ {p.price.toFixed(2)} ({p.currentStock} un)</option>
+              ))}
+            </select>
+            <input 
+              type="number" 
+              className="input-field" 
+              style={{ flex: 0.5 }}
+              value={currentQty}
+              onChange={e => setCurrentQty(Number(e.target.value))}
+              min="1"
+            />
+            <button className="btn btn-primary" onClick={addItem}>Add</button>
+          </div>
+
+          <table className="data-table">
+            <thead>
               <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-                  Nenhuma venda registrada.
-                </td>
+                <th>Produto</th>
+                <th>Qtd</th>
+                <th>Unitário</th>
+                <th>Subtotal</th>
+                <th></th>
               </tr>
-            ) : (
-              sales.map(s => (
-                <tr key={s.id}>
-                  <td>{new Date(s.createdAt).toLocaleString()}</td>
-                  <td>{s.customer.name}</td>
-                  <td>{s.user.name}</td>
-                  <td style={{ fontWeight: 'bold' }}>R$ {s.totalAmount.toFixed(2)}</td>
+            </thead>
+            <tbody>
+              {items.map(item => (
+                <tr key={item.productId}>
+                  <td>{item.productName}</td>
+                  <td>{item.quantity}</td>
+                  <td>R$ {item.unitPrice.toFixed(2)}</td>
+                  <td>R$ {item.subtotal.toFixed(2)}</td>
                   <td>
-                    <span className="badge badge-success">{s.status}</span>
+                    <button onClick={() => removeItem(item.productId)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer' }}>✖</button>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {isModalOpen && (
-        <div className="modal-overlay">
-          <div className="glass-panel modal-content animate-fade-in" style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h2 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>Nova Venda</h2>
-            <form onSubmit={handleSubmit}>
-              
-              <div className="input-group">
-                <label className="input-label">Cliente</label>
-                <select 
-                  className="input-field" 
-                  value={customerId} 
-                  onChange={e => setCustomerId(e.target.value)} 
-                  required
-                >
-                  <option value="">Selecione um cliente...</option>
-                  {customers.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', border: '1px solid var(--border)' }}>
-                <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Adicionar Produtos</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '1rem', alignItems: 'end' }}>
-                  <div className="input-group" style={{ marginBottom: 0 }}>
-                    <label className="input-label">Produto</label>
-                    <select 
-                      className="input-field" 
-                      value={selectedProductId} 
-                      onChange={e => setSelectedProductId(e.target.value)}
-                    >
-                      <option value="">Selecione...</option>
-                      {products.map(p => (
-                        <option key={p.id} value={p.id} disabled={p.currentStock <= 0}>
-                          {p.name} (R$ {p.price.toFixed(2)}) - Estoque: {p.currentStock}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="input-group" style={{ marginBottom: 0 }}>
-                    <label className="input-label">Quantidade</label>
-                    <input 
-                      type="number" 
-                      min="1"
-                      className="input-field" 
-                      value={quantity} 
-                      onChange={e => setQuantity(e.target.value)} 
-                    />
-                  </div>
-                  <button type="button" className="btn btn-primary" onClick={handleAddToCart}>
-                    Adicionar
-                  </button>
-                </div>
-
-                {cart.length > 0 && (
-                  <div style={{ marginTop: '1.5rem' }}>
-                    <table className="data-table" style={{ fontSize: '0.875rem' }}>
-                      <thead>
-                        <tr>
-                          <th>Produto</th>
-                          <th>Qtd</th>
-                          <th>Preço Un.</th>
-                          <th>Subtotal</th>
-                          <th>Ação</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {cart.map(c => (
-                          <tr key={c.productId}>
-                            <td>{c.name}</td>
-                            <td>{c.quantity}</td>
-                            <td>R$ {c.unitPrice.toFixed(2)}</td>
-                            <td style={{ fontWeight: 'bold' }}>R$ {c.subtotal.toFixed(2)}</td>
-                            <td>
-                              <button type="button" style={{ color: 'var(--danger)', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={() => removeFromCart(c.productId)}>
-                                Remover
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    <div style={{ textAlign: 'right', marginTop: '1rem', fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--primary)' }}>
-                      Total: R$ {totalCartAmount.toFixed(2)}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1.5rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', border: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                  <input 
-                    type="checkbox" 
-                    id="genReceivable"
-                    checked={generateReceivable}
-                    onChange={e => setGenerateReceivable(e.target.checked)}
-                    style={{ width: '1.2rem', height: '1.2rem' }}
-                  />
-                  <label htmlFor="genReceivable" style={{ fontWeight: 'bold', cursor: 'pointer' }}>Gerar Conta a Receber no Financeiro?</label>
-                </div>
-
-                {generateReceivable && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                    <div className="input-group">
-                      <label className="input-label">Data de Vencimento</label>
-                      <input 
-                        type="date" 
-                        className="input-field" 
-                        value={dueDate} 
-                        onChange={e => setDueDate(e.target.value)} 
-                        required={generateReceivable}
-                      />
-                    </div>
-                    <div className="input-group">
-                      <label className="input-label">Valor já pago (R$)</label>
-                      <input 
-                        type="number" 
-                        step="0.01"
-                        min="0"
-                        className="input-field" 
-                        value={amountPaid} 
-                        onChange={e => setAmountPaid(e.target.value)} 
-                      />
-                      <small style={{ color: 'var(--text-muted)' }}>Se preencher o valor total, será marcado como PAGO.</small>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
-                <button type="button" className="btn" onClick={() => setIsModalOpen(false)} style={{ background: 'var(--border)', flex: 1, color: 'white' }}>Cancelar</button>
-                <button type="submit" className="btn btn-primary" disabled={loading} style={{ flex: 1 }}>
-                  {loading ? 'Processando...' : 'Finalizar Venda'}
-                </button>
-              </div>
-            </form>
-          </div>
+              ))}
+              {items.length === 0 && (
+                <tr><td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>Nenhum item adicionado</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
+
+        {/* Lado Direito: Finalização */}
+        <div className="glass-panel" style={{ padding: '1.5rem' }}>
+          <h2 style={{ fontSize: '1.2rem', marginBottom: '1.5rem' }}>Finalizar Venda</h2>
+          
+          <div className="input-group">
+            <label className="input-label">Cliente</label>
+            <select className="input-field" value={customerId} onChange={e => setCustomerId(e.target.value)} required>
+              <option value="">Selecionar Cliente...</option>
+              {customers.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ margin: '2rem 0', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: 'var(--radius-sm)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <span>Subtotal:</span>
+              <span>R$ {total.toFixed(2)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--primary)' }}>
+              <span>TOTAL:</span>
+              <span>R$ {total.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={generateReceivable} onChange={e => setGenerateReceivable(e.target.checked)} />
+              Venda Fiada / Gerar Contas a Receber
+            </label>
+          </div>
+
+          {generateReceivable && (
+            <div className="animate-fade-in" style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem' }}>
+              <div className="input-group">
+                <label className="input-label">Valor Pago na Hora (Opcional)</label>
+                <input type="number" className="input-field" value={amountPaid} onChange={e => setAmountPaid(e.target.value)} placeholder="0.00" />
+              </div>
+              <div className="input-group">
+                <label className="input-label">Data de Vencimento</label>
+                <input type="date" className="input-field" value={dueDate} onChange={e => setDueDate(e.target.value)} required />
+              </div>
+            </div>
+          )}
+
+          <button 
+            className="btn btn-primary" 
+            style={{ width: '100%', padding: '1rem', fontSize: '1.1rem' }}
+            disabled={loading || items.length === 0}
+            onClick={handleSale}
+          >
+            {loading ? 'Processando...' : 'Confirmar Venda'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
