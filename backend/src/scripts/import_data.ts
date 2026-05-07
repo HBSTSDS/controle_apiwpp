@@ -1,6 +1,10 @@
+import * as dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import fs from 'fs';
 import path from 'path';
+
+// Carrega as variáveis do arquivo .env
+dotenv.config();
 
 const prisma = new PrismaClient();
 
