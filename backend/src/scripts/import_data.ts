@@ -217,6 +217,6 @@ async function importData() {
 }
 
 importData().catch(e => {
-  console.error(error);
+  console.error(e);
   process.exit(1);
 });
