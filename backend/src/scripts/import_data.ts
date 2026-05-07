@@ -84,12 +84,13 @@ async function importData() {
       const sku = cols[1].replace(/"/g, '').trim();
       const priceStr = cols[6].replace('R$ ', '').replace(/\./g, '').replace(',', '.');
       const price = parseFloat(priceStr) || 0;
+      const entrada = parseInt(cols[7]) || 0;
       const minStock = parseInt(cols[8]) || 0;
       const currentStock = parseInt(cols[10]) || 0;
 
       if (!name || !sku) continue;
 
-      await prisma.product.upsert({
+      const product = await prisma.product.upsert({
         where: { id: `import-${sku}` },
         update: { name, price, minStock, currentStock },
         create: {
@@ -102,8 +103,22 @@ async function importData() {
           currentStock,
         }
       });
+
+      // Se houver entrada registrada na planilha, criar uma transação de histórico
+      if (entrada > 0) {
+        await prisma.inventoryTransaction.create({
+          data: {
+            companyId,
+            productId: product.id,
+            userId,
+            type: 'IN',
+            quantity: entrada,
+            notes: 'Importação inicial (Planilha)',
+          }
+        });
+      }
     }
-    console.log('Produtos importados/atualizados com sucesso!');
+    console.log(`Produtos e histórico de estoque importados para ${company.name}!`);
   } else {
     console.warn('estoque.csv não encontrado.');
   }
