@@ -5,20 +5,22 @@ import path from 'path';
 const prisma = new PrismaClient();
 
 async function importData() {
-  const company = await prisma.company.findFirst();
-  if (!company) {
+  const companies = await prisma.company.findMany();
+  if (companies.length === 0) {
     console.error('Nenhuma empresa encontrada no banco. Cadastre-se no sistema primeiro!');
     process.exit(1);
   }
-  const companyId = company.id;
-  const user = await prisma.user.findFirst({ where: { companyId } });
+
+  const user = await prisma.user.findFirst();
   if (!user) {
-    console.error('Nenhum usuário encontrado para a empresa.');
+    console.error('Nenhum usuário encontrado.');
     process.exit(1);
   }
   const userId = user.id;
 
-  console.log(`Iniciando importação para a empresa: ${company.name} (${companyId})`);
+  for (const company of companies) {
+    const companyId = company.id;
+    console.log(`\n>>> Importando para: ${company.name} (${companyId})`);
 
   // Tentar encontrar os arquivos na raiz do projeto ou na pasta backend
   const findFile = (name: string) => {
@@ -34,23 +36,58 @@ async function importData() {
     return null;
   };
 
+  // Função robusta para dividir linha de CSV respeitando aspas
+  const splitCSV = (line: string) => {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') inQuotes = !inQuotes;
+      else if (char === ';' && !inQuotes) {
+        result.push(current);
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current);
+    return result;
+  };
+
   // --- IMPORTAR ESTOQUE (PRODUTOS) ---
   const estoquePath = findFile('estoque.csv');
   if (estoquePath) {
     console.log(`Lendo ${estoquePath}...`);
-    const data = fs.readFileSync(estoquePath, 'utf-8');
-    const lines = data.split('\n').filter(l => l.trim() !== '');
+    const rawData = fs.readFileSync(estoquePath, 'utf-8');
     
+    // Unir linhas que foram quebradas dentro de aspas
+    const lines: string[] = [];
+    let currentLine = '';
+    let inQuotes = false;
+    for (const char of rawData) {
+      if (char === '"') inQuotes = !inQuotes;
+      if (char === '\n' && !inQuotes) {
+        lines.push(currentLine);
+        currentLine = '';
+      } else {
+        currentLine += char;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
+
     for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(';');
+      const cols = splitCSV(lines[i].trim());
       if (cols.length < 11) continue;
 
-      const name = cols[0].trim();
-      const sku = cols[1].trim();
-      const priceStr = cols[6].replace('R$ ', '').replace('.', '').replace(',', '.');
+      const name = cols[0].replace(/"/g, '').trim();
+      const sku = cols[1].replace(/"/g, '').trim();
+      const priceStr = cols[6].replace('R$ ', '').replace(/\./g, '').replace(',', '.');
       const price = parseFloat(priceStr) || 0;
       const minStock = parseInt(cols[8]) || 0;
       const currentStock = parseInt(cols[10]) || 0;
+
+      if (!name || !sku) continue;
 
       await prisma.product.upsert({
         where: { id: `import-${sku}` },
@@ -75,24 +112,32 @@ async function importData() {
   const vendasPath = findFile('vendas.csv');
   if (vendasPath) {
     console.log(`Lendo ${vendasPath}...`);
-    const data = fs.readFileSync(vendasPath, 'utf-8');
-    const lines = data.split('\n').filter(l => l.trim() !== '');
+    const rawData = fs.readFileSync(vendasPath, 'utf-8');
+    
+    const lines: string[] = [];
+    let currentLine = '';
+    let inQuotes = false;
+    for (const char of rawData) {
+      if (char === '"') inQuotes = !inQuotes;
+      if (char === '\n' && !inQuotes) {
+        lines.push(currentLine);
+        currentLine = '';
+      } else {
+        currentLine += char;
+      }
+    }
+    if (currentLine) lines.push(currentLine);
 
     for (let i = 1; i < lines.length; i++) {
-      let line = lines[i].trim();
-      if (line.startsWith('"') && line.endsWith('"')) {
-        line = line.substring(1, line.length - 1);
-      }
-      
-      const cols = line.split(';');
+      const cols = splitCSV(lines[i].trim());
       if (cols.length < 10) continue;
 
-      const dataVenda = cols[0].trim(); 
-      const prodName = cols[1].trim();
-      const sku = cols[2].trim();
-      const clienteName = cols[4].trim();
+      const dataVenda = cols[0].replace(/"/g, '').trim(); 
+      const prodName = cols[1].replace(/"/g, '').trim();
+      const sku = cols[2].replace(/"/g, '').trim();
+      const clienteName = cols[4].replace(/"/g, '').trim();
       const qtde = parseInt(cols[5]) || 0;
-      const valorUnitStr = cols[6].replace('R$ ', '').replace('.', '').replace(',', '.');
+      const valorUnitStr = cols[6].replace('R$ ', '').replace(/\./g, '').replace(',', '.');
       const valorUnit = parseFloat(valorUnitStr) || 0;
       
       const formaPagto = cols[8].trim(); // FIADO | PIX | etc
@@ -160,12 +205,14 @@ async function importData() {
         });
       }
     }
-    console.log('Vendas e Clientes importados com sucesso!');
+    console.log(`Vendas e Clientes importados com sucesso para ${company.name}!`);
   } else {
     console.warn('vendas.csv não encontrado.');
   }
 
-  console.log('=== Importação concluída! ===');
+  } // Fim do loop de empresas
+
+  console.log('\n=== Todas as importações concluídas! ===');
   await prisma.$disconnect();
 }
 
