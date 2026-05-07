@@ -13,7 +13,10 @@ export class ReceivableController {
           customer: { select: { name: true, phone: true } },
           sale: { select: { totalAmount: true } }
         },
-        orderBy: { dueDate: 'asc' }
+        orderBy: [
+          { dueDate: 'asc' },
+          { installmentNumber: 'asc' }
+        ]
       });
 
       return res.json(receivables);

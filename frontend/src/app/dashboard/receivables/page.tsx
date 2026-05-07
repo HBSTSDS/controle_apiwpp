@@ -94,6 +94,7 @@ export default function ReceivablesPage() {
           <thead>
             <tr>
               <th>Cliente</th>
+              <th>Parcela</th>
               <th>Vencimento</th>
               <th>Valor</th>
               <th>Status</th>
@@ -106,6 +107,9 @@ export default function ReceivablesPage() {
                 <td>
                   <strong>{r.customer.name}</strong>
                   <br /><small style={{ color: 'var(--text-muted)' }}>{r.customer.phone || 'Sem telefone'}</small>
+                </td>
+                <td>
+                  <span style={{ color: 'var(--primary)', fontWeight: 'bold' }}>{r.installmentNumber} / {r.totalInstallments}</span>
                 </td>
                 <td>
                   {new Date(r.dueDate).toLocaleDateString('pt-BR')}

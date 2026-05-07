@@ -31,6 +31,7 @@ export default function SalesPage() {
   const [items, setItems] = useState<SaleItem[]>([]);
   const [customerId, setCustomerId] = useState('');
   const [generateReceivable, setGenerateReceivable] = useState(false);
+  const [installments, setInstallments] = useState(1);
   const [dueDate, setDueDate] = useState('');
   const [amountPaid, setAmountPaid] = useState('');
   const [loading, setLoading] = useState(false);
@@ -104,6 +105,7 @@ export default function SalesPage() {
           customerId, 
           items, 
           generateReceivable, 
+          installments,
           dueDate: generateReceivable ? dueDate : null,
           amountPaid: Number(amountPaid || 0)
         }),
@@ -222,11 +224,19 @@ export default function SalesPage() {
           {generateReceivable && (
             <div className="animate-fade-in" style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem' }}>
               <div className="input-group">
+                <label className="input-label">Número de Parcelas</label>
+                <select className="input-field" value={installments} onChange={e => setInstallments(Number(e.target.value))}>
+                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => (
+                    <option key={n} value={n}>{n}x {n > 1 ? `de R$ ${(total/n).toFixed(2)}` : ''}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="input-group">
                 <label className="input-label">Valor Pago na Hora (Opcional)</label>
                 <input type="number" className="input-field" value={amountPaid} onChange={e => setAmountPaid(e.target.value)} placeholder="0.00" />
               </div>
               <div className="input-group">
-                <label className="input-label">Data de Vencimento</label>
+                <label className="input-label">Vencimento da 1ª Parcela</label>
                 <input type="date" className="input-field" value={dueDate} onChange={e => setDueDate(e.target.value)} required />
               </div>
             </div>

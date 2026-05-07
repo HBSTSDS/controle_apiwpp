@@ -68,17 +68,29 @@ export class SaleController {
 
         // 3. Generate Receivable (Conta a Receber) if requested
         if (generateReceivable && dueDate) {
-          await prisma.receivable.create({
-            data: {
-              companyId,
-              saleId: sale.id,
-              customerId,
-              amount: totalAmount, // Assuming single installment for MVP, can be adjusted
-              dueDate: new Date(dueDate),
-              status: amountPaid >= totalAmount ? 'PAID' : 'PENDING',
-              paidAt: amountPaid >= totalAmount ? new Date() : null
-            }
-          });
+          const { installments = 1 } = req.body;
+          const totalInstallments = Number(installments) || 1;
+          const installmentAmount = totalAmount / totalInstallments;
+          const initialDueDate = new Date(dueDate);
+
+          for (let i = 1; i <= totalInstallments; i++) {
+            const currentDueDate = new Date(initialDueDate);
+            currentDueDate.setMonth(currentDueDate.getMonth() + (i - 1));
+
+            await prisma.receivable.create({
+              data: {
+                companyId,
+                saleId: sale.id,
+                customerId,
+                amount: installmentAmount,
+                dueDate: currentDueDate,
+                installmentNumber: i,
+                totalInstallments: totalInstallments,
+                status: (i === 1 && amountPaid >= installmentAmount) ? 'PAID' : 'PENDING',
+                paidAt: (i === 1 && amountPaid >= installmentAmount) ? new Date() : null
+              }
+            });
+          }
         }
 
         return sale;
